@@ -1,0 +1,15 @@
+# Export outputs (generated on user's machine)
+*.csv
+*.html
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
