@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 param(
     [switch]$AutoExport  # For unattended/scheduled runs — scans and exports without interaction
 )
@@ -59,7 +59,7 @@ function Detect-Orphaned {
         $_.ProcessId -ne 0 -and
         $_.ProcessId -ne 4 -and
         -not $allPids.ContainsKey([int]$_.ParentProcessId) -and
-        $_.Name.Replace(".exe","") -notin $SafeIgnoreList
+        $_.Name -replace '\.exe$','' -notin $SafeIgnoreList
     } | ForEach-Object {
         [PSCustomObject]@{
             Type      = "ORPHANED"
@@ -111,7 +111,7 @@ function Detect-HiddenResourceHogs {
             Name      = $_.ProcessName
             PID       = $_.Id
             "Mem_MB"  = [math]::Round($_.WorkingSet64 / 1MB, 1)
-            StartTime = try { $_.StartTime.ToString("yyyy-MM-dd HH:mm") } catch { "N/A" }
+            StartTime = $(try { $_.StartTime.ToString("yyyy-MM-dd HH:mm") } catch { "N/A" })
             Detail    = "No visible window, consuming $([math]::Round($_.WorkingSet64/1MB,1)) MB"
             Safe      = $true
         }
@@ -133,7 +133,7 @@ function Detect-SuspendedThreads {
             Name      = $_.ProcessName
             PID       = $_.Id
             "Mem_MB"  = [math]::Round($_.WorkingSet64 / 1MB, 1)
-            StartTime = try { $_.StartTime.ToString("yyyy-MM-dd HH:mm") } catch { "N/A" }
+            StartTime = $(try { $_.StartTime.ToString("yyyy-MM-dd HH:mm") } catch { "N/A" })
             Detail    = "All $($_.Threads.Count) threads are suspended"
             Safe      = $true
         }
@@ -157,7 +157,7 @@ function Detect-GhostServices {
                         Name      = "$($svc.Name) ($($proc.ProcessName))"
                         PID       = $wmiSvc.ProcessId
                         "Mem_MB"  = [math]::Round($proc.WorkingSet64 / 1MB, 1)
-                        StartTime = try { $proc.StartTime.ToString("yyyy-MM-dd HH:mm") } catch { "N/A" }
+                        StartTime = $(try { $proc.StartTime.ToString("yyyy-MM-dd HH:mm") } catch { "N/A" })
                         Detail    = "Service '$($svc.DisplayName)' is stopped but PID $($wmiSvc.ProcessId) still alive"
                         Safe      = $true
                     }
@@ -473,68 +473,69 @@ Write-Host "  Ready. Run [1] for a full scan, or [?] for help.`n" -ForegroundCol
 while ($true) {
     Show-Menu
     $choice = Read-Host "  Select option"
-    switch ($choice) {
-        "1"  {
-            $zombieData = Run-FullScan -IdleHours $IdleHoursThreshold -HiddenMemMB $HiddenMemThreshold
-            Display-Results $zombieData
-        }
-        "2"  { $r = @(Detect-NotResponding); Display-Results $r }
-        "3"  { $r = @(Detect-Orphaned); Display-Results $r }
-        "4"  {
-            $h = Read-Host "  Hours threshold (default=$IdleHoursThreshold, Enter to keep)"
-            if ($h) { $IdleHoursThreshold = [int]$h }
-            $r = @(Detect-IdleLongRunning -HoursThreshold $IdleHoursThreshold); Display-Results $r
-        }
-        "5"  {
-            $m = Read-Host "  Memory threshold in MB (default=$HiddenMemThreshold, Enter to keep)"
-            if ($m) { $HiddenMemThreshold = [int]$m }
-            $r = @(Detect-HiddenResourceHogs -MemThresholdMB $HiddenMemThreshold); Display-Results $r
-        }
-        "6"  { $r = @(Detect-SuspendedThreads); Display-Results $r }
-        "7"  { $r = @(Detect-GhostServices); Display-Results $r }
-        "8"  { $r = @(Detect-DuplicateProcesses); Display-Results $r }
-        "9"  {
-            if (!$zombieData) {
-                Write-Host "  No scan data yet. Running full scan first..." -ForegroundColor DarkYellow
+    while ($true) {
+        switch ($choice) {
+            "1"  {
                 $zombieData = Run-FullScan -IdleHours $IdleHoursThreshold -HiddenMemMB $HiddenMemThreshold
                 Display-Results $zombieData
             }
-            Kill-Interactive $zombieData
-        }
-        "10" {
-            if (!$zombieData) {
-                Write-Host "  No scan data yet. Running full scan first..." -ForegroundColor DarkYellow
-                $zombieData = Run-FullScan -IdleHours $IdleHoursThreshold -HiddenMemMB $HiddenMemThreshold
-                Display-Results $zombieData
+            "2"  { $r = @(Detect-NotResponding); Display-Results $r }
+            "3"  { $r = @(Detect-Orphaned); Display-Results $r }
+            "4"  {
+                $h = Read-Host "  Hours threshold (default=$IdleHoursThreshold, Enter to keep)"
+                if ($h) { $IdleHoursThreshold = [int]$h }
+                $r = @(Detect-IdleLongRunning -HoursThreshold $IdleHoursThreshold); Display-Results $r
             }
-            Kill-AllSafe $zombieData
-        }
-        "11" {
-            if (!$zombieData) {
-                Write-Host "  No scan data yet. Running full scan first..." -ForegroundColor DarkYellow
-                $zombieData = Run-FullScan -IdleHours $IdleHoursThreshold -HiddenMemMB $HiddenMemThreshold
+            "5"  {
+                $m = Read-Host "  Memory threshold in MB (default=$HiddenMemThreshold, Enter to keep)"
+                if ($m) { $HiddenMemThreshold = [int]$m }
+                $r = @(Detect-HiddenResourceHogs -MemThresholdMB $HiddenMemThreshold); Display-Results $r
             }
-            Export-ZombieReport $zombieData
+            "6"  { $r = @(Detect-SuspendedThreads); Display-Results $r }
+            "7"  { $r = @(Detect-GhostServices); Display-Results $r }
+            "8"  { $r = @(Detect-DuplicateProcesses); Display-Results $r }
+            "9"  {
+                if (!$zombieData) {
+                    Write-Host "  No scan data yet. Running full scan first..." -ForegroundColor DarkYellow
+                    $zombieData = Run-FullScan -IdleHours $IdleHoursThreshold -HiddenMemMB $HiddenMemThreshold
+                    Display-Results $zombieData
+                }
+                Kill-Interactive $zombieData
+            }
+            "10" {
+                if (!$zombieData) {
+                    Write-Host "  No scan data yet. Running full scan first..." -ForegroundColor DarkYellow
+                    $zombieData = Run-FullScan -IdleHours $IdleHoursThreshold -HiddenMemMB $HiddenMemThreshold
+                    Display-Results $zombieData
+                }
+                Kill-AllSafe $zombieData
+            }
+            "11" {
+                if (!$zombieData) {
+                    Write-Host "  No scan data yet. Running full scan first..." -ForegroundColor DarkYellow
+                    $zombieData = Run-FullScan -IdleHours $IdleHoursThreshold -HiddenMemMB $HiddenMemThreshold
+                }
+                Export-ZombieReport $zombieData
+            }
+            "12" {
+                Write-Host "`n  ── CONFIGURE THRESHOLDS ──" -ForegroundColor Yellow
+                Write-Host "  Current: Idle=$IdleHoursThreshold hours, Hidden Memory=$HiddenMemThreshold MB" -ForegroundColor DarkGray
+                $h = Read-Host "  Idle hours threshold (Enter to keep current)"
+                if ($h) { $IdleHoursThreshold = [int]$h; Write-Host "  → Set to $IdleHoursThreshold hours" -ForegroundColor Green }
+                $m = Read-Host "  Hidden process memory threshold in MB (Enter to keep current)"
+                if ($m) { $HiddenMemThreshold = [int]$m; Write-Host "  → Set to $HiddenMemThreshold MB" -ForegroundColor Green }
+            }
+            "?"  { Show-Help }
+            "0"  { Write-Host "`n  Goodbye!`n" -ForegroundColor Red; exit }
+            default { Write-Host "  Invalid option. Type [?] for help." -ForegroundColor Red }
         }
-        "12" {
-            Write-Host "`n  ── CONFIGURE THRESHOLDS ──" -ForegroundColor Yellow
-            Write-Host "  Current: Idle=$IdleHoursThreshold hours, Hidden Memory=$HiddenMemThreshold MB" -ForegroundColor DarkGray
-            $h = Read-Host "  Idle hours threshold (Enter to keep current)"
-            if ($h) { $IdleHoursThreshold = [int]$h; Write-Host "  → Set to $IdleHoursThreshold hours" -ForegroundColor Green }
-            $m = Read-Host "  Hidden process memory threshold in MB (Enter to keep current)"
-            if ($m) { $HiddenMemThreshold = [int]$m; Write-Host "  → Set to $HiddenMemThreshold MB" -ForegroundColor Green }
-        }
-        "?"  { Show-Help }
-        "0"  { Write-Host "`n  Goodbye!`n" -ForegroundColor Red; exit }
-        default { Write-Host "  Invalid option. Type [?] for help." -ForegroundColor Red }
-    }
-    Write-Host ""
-    Write-Host "  Press Enter for menu, or type next option directly:" -ForegroundColor DarkGray -NoNewline
-    $next = Read-Host " "
-    if ($next) {
-        $choice = $next
-        Show-Banner $zombieData -NoClear
-        continue
+        Write-Host ""
+        Write-Host "  Press Enter for menu, or type next option directly:" -ForegroundColor DarkGray -NoNewline
+        $next = Read-Host " "
+        if ($next) {
+            $choice = $next
+            Show-Banner $zombieData -NoClear
+        } else { break }
     }
     Show-Banner $zombieData
 }
