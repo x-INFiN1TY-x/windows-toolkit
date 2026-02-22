@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Advanced Windows Process Auditor — Segment, categorize, and analyze all running processes.
@@ -368,10 +368,10 @@ function Option-Search {
 function Option-KillProcess {
     param($Data)
     $target = Read-Host "`n  Enter PID or process name to kill"
-    $matches = $Data | Where-Object { $_.PID -eq $target -or $_.Name -like "*$target*" }
-    if (!$matches) { Write-Host "  No process found." -ForegroundColor Red; return }
+    $matchedProcs = $Data | Where-Object { $_.PID -eq $target -or $_.Name -like "*$target*" }
+    if (!$matchedProcs) { Write-Host "  No process found." -ForegroundColor Red; return }
 
-    foreach ($p in $matches) {
+    foreach ($p in $matchedProcs) {
         $color = if ($p.Killable) { "Yellow" } else { "Red" }
         $safety = if ($p.Killable) { "SAFE TO KILL" } else { "!! PROTECTED — KILLING MAY CRASH SYSTEM !!" }
         Write-Host ("  [{0}] PID={1}  {2}  Mem={3}MB  Category={4}" -f $safety, $p.PID, $p.Name, $p.Mem_MB, $p.Category) -ForegroundColor $color
@@ -379,7 +379,7 @@ function Option-KillProcess {
 
     $confirm = Read-Host "`n  Proceed with kill? Type 'YES' to confirm"
     if ($confirm -eq "YES") {
-        foreach ($p in $matches) {
+        foreach ($p in $matchedProcs) {
             if (!$p.Killable) {
                 $force = Read-Host "  $($p.Name) (PID $($p.PID)) is PROTECTED. Force kill anyway? (type 'FORCE')"
                 if ($force -ne "FORCE") { Write-Host "  Skipped $($p.Name)." -ForegroundColor DarkGray; continue }
@@ -712,36 +712,37 @@ Show-Banner $processData
 while ($true) {
     Show-Menu
     $choice = Read-Host "  Select option"
-    switch ($choice) {
-        "1"  { Option-FullReport $processData }
-        "2"  { Option-ByCategory $processData }
-        "3"  { Option-TopHogs $processData }
-        "4"  { Option-ImpactAnalysis $processData }
-        "5"  { Option-LongRunning $processData }
-        "6"  { Option-Uncategorized $processData }
-        "7"  { Option-Search $processData }
-        "8"  { Option-KillProcess $processData }
-        "9"  { Option-KillByCategory $processData }
-        "10" { Option-Export $processData }
-        "11" { Option-NetworkActivity }
-        "12" { Option-DiskIO }
-        "13" { Option-ProcessTree $processData }
-        "14" { Option-StartupAnalysis }
-        "15" { Option-RelevanceBreakdown $processData }
-        "16" { Option-RestorePoint }
-        "17" { $processData = Collect-ProcessData; Write-Host "  Refreshed $($processData.Count) processes." -ForegroundColor Green }
-        "?"  { Show-Help }
-        "0"  { Write-Host "`n  Goodbye!`n" -ForegroundColor Cyan; exit }
-        default { Write-Host "  Invalid option. Type [?] for help." -ForegroundColor Red }
-    }
-    Write-Host ""
-    Write-Host "  Press Enter for menu, or type next option directly:" -ForegroundColor DarkGray -NoNewline
-    $next = Read-Host " "
-    if ($next) {
-        # User typed a command directly — process it without redrawing
-        $choice = $next
-        Show-Banner $processData -NoClear
-        continue
+    while ($true) {
+        switch ($choice) {
+            "1"  { Option-FullReport $processData }
+            "2"  { Option-ByCategory $processData }
+            "3"  { Option-TopHogs $processData }
+            "4"  { Option-ImpactAnalysis $processData }
+            "5"  { Option-LongRunning $processData }
+            "6"  { Option-Uncategorized $processData }
+            "7"  { Option-Search $processData }
+            "8"  { Option-KillProcess $processData }
+            "9"  { Option-KillByCategory $processData }
+            "10" { Option-Export $processData }
+            "11" { Option-NetworkActivity }
+            "12" { Option-DiskIO }
+            "13" { Option-ProcessTree $processData }
+            "14" { Option-StartupAnalysis }
+            "15" { Option-RelevanceBreakdown $processData }
+            "16" { Option-RestorePoint }
+            "17" { $processData = Collect-ProcessData; Write-Host "  Refreshed $($processData.Count) processes." -ForegroundColor Green }
+            "?"  { Show-Help }
+            "0"  { Write-Host "`n  Goodbye!`n" -ForegroundColor Cyan; exit }
+            default { Write-Host "  Invalid option. Type [?] for help." -ForegroundColor Red }
+        }
+        Write-Host ""
+        Write-Host "  Press Enter for menu, or type next option directly:" -ForegroundColor DarkGray -NoNewline
+        $next = Read-Host " "
+        if ($next) {
+            # User typed a command directly — process it without redrawing the full menu
+            $choice = $next
+            Show-Banner $processData -NoClear
+        } else { break }
     }
     Show-Banner $processData
 }
